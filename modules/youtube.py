@@ -4,72 +4,7 @@ import os
 import re
 from datetime import date, datetime, time, timedelta, timezone
 
-from myutils.youtube_api import YouTubeAPI, create_youtube_api
-
-
-UTC = timezone.utc
-
-
-def _to_utc_z(value: str | date | datetime, *, end_date: bool = False) -> str:
-    """日付/日時をYouTube API・youtube.db用のUTC ISO文字列へ変換する。"""
-    if isinstance(value, datetime):
-        dt = value
-
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=UTC)
-
-        dt = dt.astimezone(UTC)
-
-        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    if isinstance(value, date):
-        dt = datetime.combine(
-            value,
-            time.min,
-            tzinfo=UTC,
-        )
-
-        if end_date:
-            dt += timedelta(days=1)
-
-        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    text = str(value).strip()
-
-    if not text:
-        raise ValueError("date is required")
-
-    # YYYY-M-D / YYYY-MM-DD の両方を許可する
-    match = re.fullmatch(
-        r"(\d{4})-(\d{1,2})-(\d{1,2})",
-        text,
-    )
-
-    if match:
-        year, month, day = map(int, match.groups())
-
-        parsed_date = date(
-            year,
-            month,
-            day,
-        )
-
-        return _to_utc_z(
-            parsed_date,
-            end_date=end_date,
-        )
-
-    # 日付以外の日時文字列
-    normalized = text.replace("Z", "+00:00")
-
-    dt = datetime.fromisoformat(normalized)
-
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
-
-    dt = dt.astimezone(UTC)
-
-    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+from myutils.youtube_api import YouTubeAPI, create_youtube_api, to_utc_z
 
 
 def get_target_videos(
@@ -87,8 +22,8 @@ def get_target_videos(
     """
     api = api or create_youtube_api()
 
-    start = _to_utc_z(start_date)
-    end = _to_utc_z(end_date, end_date=True)
+    start = to_utc_z(start_date)
+    end = to_utc_z(end_date, end_date=True)
 
     api.sync_channel_videos(
         channel_id,

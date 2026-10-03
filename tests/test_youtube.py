@@ -3,61 +3,62 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from modules.youtube import _to_utc_z, get_target_videos
+from modules.youtube import get_target_videos
+from myutils.youtube_api import to_utc_z
 
 UTC = timezone.utc
 
 
 def test_to_utc_z_converts_date():
-    assert _to_utc_z(date(2026, 9, 1)) == "2026-09-01T00:00:00Z"
+    assert to_utc_z(date(2026, 9, 1)) == "2026-09-01T00:00:00Z"
 
 
 def test_to_utc_z_converts_end_date_to_next_day():
-    assert _to_utc_z(date(2026, 9, 1), end_date=True) == "2026-09-02T00:00:00Z"
+    assert to_utc_z(date(2026, 9, 1), end_date=True) == "2026-09-02T00:00:00Z"
 
 
 def test_to_utc_z_accepts_short_date_string():
-    assert _to_utc_z("2026-9-1") == "2026-09-01T00:00:00Z"
+    assert to_utc_z("2026-9-1") == "2026-09-01T00:00:00Z"
 
 
 def test_to_utc_z_accepts_full_date_string():
-    assert _to_utc_z("2026-09-01") == "2026-09-01T00:00:00Z"
+    assert to_utc_z("2026-09-01") == "2026-09-01T00:00:00Z"
 
 
 def test_to_utc_z_accepts_iso_datetime_without_timezone():
-    assert _to_utc_z("2026-09-01T12:34:56") == "2026-09-01T12:34:56Z"
+    assert to_utc_z("2026-09-01T12:34:56") == "2026-09-01T12:34:56Z"
 
 
 def test_to_utc_z_accepts_z_datetime():
-    assert _to_utc_z("2026-09-01T12:34:56Z") == "2026-09-01T12:34:56Z"
+    assert to_utc_z("2026-09-01T12:34:56Z") == "2026-09-01T12:34:56Z"
 
 
 def test_to_utc_z_converts_offset_aware_datetime():
     value = "2026-09-01T21:34:56+09:00"
 
-    assert _to_utc_z(value) == "2026-09-01T12:34:56Z"
+    assert to_utc_z(value) == "2026-09-01T12:34:56Z"
 
 
 def test_to_utc_z_converts_offset_aware_datetime_object():
     value = datetime(2026, 9, 1, 21, 34, 56, tzinfo=timezone(timedelta(hours=9)))
 
-    assert _to_utc_z(value) == "2026-09-01T12:34:56Z"
+    assert to_utc_z(value) == "2026-09-01T12:34:56Z"
 
 
 def test_to_utc_z_treats_naive_datetime_as_utc():
     value = datetime(2026, 9, 1, 12, 34, 56)
 
-    assert _to_utc_z(value) == "2026-09-01T12:34:56Z"
+    assert to_utc_z(value) == "2026-09-01T12:34:56Z"
 
 
 def test_to_utc_z_rejects_empty_string():
     with pytest.raises(ValueError, match="date is required"):
-        _to_utc_z("   ")
+        to_utc_z("   ")
 
 
 def test_to_utc_z_rejects_invalid_date():
     with pytest.raises(ValueError):
-        _to_utc_z("2026-02-30")
+        to_utc_z("2026-02-30")
 
 
 def make_api(rows, live_video_ids=None, channel_titles=None):
