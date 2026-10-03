@@ -108,10 +108,10 @@ def test_get_target_videos_updates_cache_and_returns_video_dicts():
         api=api,
     )
 
-    api.fetch_and_save_videos_from_channel.assert_called_once_with(
+    api.sync_channel_videos.assert_called_once_with(
         "channel1",
-        published_after="2026-09-01T00:00:00Z",
-        published_before="2026-09-03T00:00:00Z",
+        start_date="2026-09-01T00:00:00Z",
+        end_date="2026-09-03T00:00:00Z",
     )
     api.db.get_videos_by_channel_and_date.assert_called_once_with(
         "channel1",

@@ -90,11 +90,10 @@ def get_target_videos(
     start = _to_utc_z(start_date)
     end = _to_utc_z(end_date, end_date=True)
 
-    # 既存キャッシュが部分的でも漏れないよう、対象期間をAPIで更新する。
-    api.fetch_and_save_videos_from_channel(
+    api.sync_channel_videos(
         channel_id,
-        published_after=start,
-        published_before=end,
+        start_date=start,
+        end_date=end,
     )
 
     rows = api.db.get_videos_by_channel_and_date(
