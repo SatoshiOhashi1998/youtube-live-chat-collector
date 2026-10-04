@@ -60,3 +60,31 @@ def get_target_videos(
         )
 
     return videos
+
+
+def refresh_historical_channel(
+    channel_id: str,
+    start_date: str | date | datetime,
+    end_date: str | date | datetime,
+    api: YouTubeAPI | None = None,
+) -> bool:
+    """
+    指定チャンネルの過去動画をAPIから再取得し、
+    youtube.dbへ保存する。
+
+    既存の同期状態は取得判定に使用しない。
+    """
+
+    api = api or create_youtube_api()
+
+    start = to_utc_z(start_date)
+    end = to_utc_z(
+        end_date,
+        end_date=True,
+    )
+
+    return api.refresh_channel_videos(
+        channel_id,
+        start_date=start,
+        end_date=end,
+    )

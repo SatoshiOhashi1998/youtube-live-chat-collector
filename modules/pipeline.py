@@ -2,10 +2,17 @@ from __future__ import annotations
 
 from .comment_processor import extract_comments
 from .comments_db import CommentsDB
-from .config import COMMENT_KEYWORDS, COOKIES_FILE, JSON_DIRECTORY
+from .config import (
+    COMMENT_KEYWORDS, 
+    COOKIES_FILE, 
+    JSON_DIRECTORY,
+    CHANNEL_DATAS,
+    get_channels,
+)
 from .live_chat import NO_CHAT, RETRY, SUCCESS, delete_video_json, download_live_chat
 from .channel import Channel
-from .youtube import get_target_videos
+from .youtube import get_target_videos, refresh_historical_channel
+
 
 
 def process_channel(
@@ -132,3 +139,55 @@ def process_channels(
             total_stats[key] += stats[key]
 
     return total_stats
+
+def process_historical_channels(
+    start_date,
+    end_date,
+) -> dict[str, int]:
+    channels = get_channels(CHANNEL_DATAS)
+
+    stats = {
+        "total": len(channels),
+        "completed": 0,
+        "failed": 0,
+    }
+
+    for channel in channels:
+        print()
+        print("=" * 60)
+        print(
+            f"REFRESH: "
+            f"{channel.channel_name} "
+            f"({channel.channel_id})"
+        )
+        print("=" * 60)
+
+        try:
+            success = refresh_historical_channel(
+                channel_id=channel.channel_id,
+                start_date=start_date,
+                end_date=end_date,
+            )
+
+            if success:
+                stats["completed"] += 1
+                print(
+                    f"COMPLETED: "
+                    f"{channel.channel_name}"
+                )
+            else:
+                stats["failed"] += 1
+                print(
+                    f"FAILED: "
+                    f"{channel.channel_name}"
+                )
+
+        except Exception as exc:
+            stats["failed"] += 1
+
+            print(
+                f"ERROR: "
+                f"{channel.channel_name}: {exc}"
+            )
+
+    return stats
