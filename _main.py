@@ -1,16 +1,9 @@
-from myutils.youtube_api import YouTubeDB
-
 from modules.config import FILTERED_DATA, validate
 from modules.exporter import export_comments_to_csv
-from modules.pipeline import process_historical_channels
-
-
-def inspect_youtube_database():
-    db = YouTubeDB()
-
-    db.print_table("channels")
-    db.print_table("channel_sync_state")
-    db.print_channel_video_summary()
+from modules.pipeline import (
+    process_current_channels,
+    process_historical_channels,
+)
 
 
 def run_historical():
@@ -31,11 +24,21 @@ def run_historical():
     print(f"total:   {stats['total']}")
 
 
+def run_current():
+    validate()
+
+    stats = process_current_channels()
+
+    print()
+    print("=== Current sync ===")
+    print(f"success: {stats['completed']}")
+    print(f"failed:  {stats['failed']}")
+    print(f"total:   {stats['total']}")
+
+
 def main():
     export_comments_to_csv(FILTERED_DATA)
 
 
 if __name__ == "__main__":
-    # main()
-    run_historical()
-    # inspect_youtube_database()
+    run_current()

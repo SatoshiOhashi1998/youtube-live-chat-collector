@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import re
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta, timezone
 
 from myutils.youtube_api import YouTubeAPI, create_youtube_api, to_utc_z
 
@@ -84,6 +84,37 @@ def refresh_historical_channel(
     )
 
     return api.refresh_channel_videos(
+        channel_id,
+        start_date=start,
+        end_date=end,
+    )
+
+def sync_current_channel(
+    channel_id: str,
+    api: YouTubeAPI | None = None,
+) -> bool:
+    api = api or create_youtube_api()
+
+    state = api.db.get_channel_sync_state(channel_id)
+
+    if not state:
+        return False
+
+    newest_synced_at = state[3]
+
+    if not newest_synced_at:
+        return False
+
+    start = to_utc_z(newest_synced_at)
+
+    end = to_utc_z(
+        datetime.now(UTC) - timedelta(days=1)
+    )
+
+    if start >= end:
+        return True
+
+    return api.sync_channel_videos(
         channel_id,
         start_date=start,
         end_date=end,
