@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "youtube-live-chat-collector"
+version = "0.1.0"
+description = "YouTube live chat collection and processing"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+include = ["youtube_live_chat_collector*"]
