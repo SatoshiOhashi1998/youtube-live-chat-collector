@@ -45,7 +45,7 @@ def run_historical(
 def main():
     export_comments_to_csv(FILTERED_DATA)
 
-if __name__ == "main":
+if __name__ == "__main__":
     # CSV登録済みの全チャンネルを同期
     # run_current()
 
