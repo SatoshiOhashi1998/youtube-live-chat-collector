@@ -64,7 +64,7 @@ def test_to_utc_z_rejects_invalid_date():
 def make_api(rows, live_video_ids=None, channel_titles=None):
     api = MagicMock()
     api.db.get_videos_by_channel_and_date.return_value = rows
-    api.get_live_streaming_video_ids.return_value = live_video_ids or set()
+    api.get_live_broadcast_video_ids.return_value = live_video_ids or set()
     channel_titles = channel_titles or {}
     api.db.get_channel_by_id.side_effect = lambda channel_id: (
         channel_id,
@@ -119,7 +119,7 @@ def test_get_target_videos_updates_cache_and_returns_video_dicts():
         "2026-09-01T00:00:00Z",
         "2026-09-03T00:00:00Z",
     )
-    api.get_live_streaming_video_ids.assert_called_once_with(
+    api.get_live_broadcast_video_ids.assert_called_once_with(
         ["video1", "video2"]
     )
 
@@ -131,7 +131,7 @@ def test_get_target_videos_updates_cache_and_returns_video_dicts():
             "channel": "テストチャンネル",
             "published_at": "2026-09-01T12:00:00Z",
             "duration": 120,
-            "is_live": True,
+            "is_live_broadcast": True,
             "url": "https://www.youtube.com/watch?v=video1",
         },
         {
@@ -141,7 +141,7 @@ def test_get_target_videos_updates_cache_and_returns_video_dicts():
             "channel": "テストチャンネル",
             "published_at": "2026-09-02T12:00:00Z",
             "duration": None,
-            "is_live": False,
+            "is_live_broadcast": False,
             "url": "https://www.youtube.com/watch?v=video2",
         },
     ]
@@ -159,7 +159,7 @@ def test_get_target_videos_handles_missing_channel_title():
         )
     ]
     api.db.get_channel_by_id.return_value = None
-    api.get_live_streaming_video_ids.return_value = set()
+    api.get_live_broadcast_video_ids.return_value = set()
 
     result = get_target_videos(
         "channel1",
@@ -169,4 +169,4 @@ def test_get_target_videos_handles_missing_channel_title():
     )
 
     assert result[0]["channel"] == ""
-    assert result[0]["is_live"] is False
+    assert result[0]["is_live_broadcast"] is False

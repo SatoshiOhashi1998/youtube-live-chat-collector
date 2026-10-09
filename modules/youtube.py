@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import os
@@ -17,8 +18,8 @@ def get_target_videos(
     指定チャンネル・指定期間の動画をyoutube.dbへ反映し、
     youtube.dbから対象動画を返す。
 
-    live_streaming_detailsの有無で通常動画を判定し、
-    is_live=True/Falseを付加する。
+    liveStreamingDetailsの有無で過去にライブ配信された動画を判定し、
+    is_live_broadcast=True/Falseを付加する。
     """
     api = api or create_youtube_api()
 
@@ -38,7 +39,7 @@ def get_target_videos(
     )
 
     video_ids = [row[0] for row in rows]
-    live_video_ids = api.get_live_streaming_video_ids(video_ids)
+    live_broadcast_video_ids = api.get_live_broadcast_video_ids(video_ids)
 
     videos = []
     for row in rows:
@@ -54,7 +55,7 @@ def get_target_videos(
                 "channel": channel_title,
                 "published_at": row[3],
                 "duration": row[4],
-                "is_live": video_id in live_video_ids,
+                "is_live_broadcast": video_id in live_broadcast_video_ids,
                 "url": f"https://www.youtube.com/watch?v={video_id}",
             }
         )

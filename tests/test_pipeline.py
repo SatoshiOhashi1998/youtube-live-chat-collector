@@ -6,7 +6,7 @@ from modules.live_chat import DownloadResult
 import modules.pipeline as pipeline
 
 
-def video(video_id="video1", *, is_live=True):
+def video(video_id="video1", *, is_live_broadcast=True):
     return {
         "video_id": video_id,
         "title": f"動画 {video_id}",
@@ -14,7 +14,7 @@ def video(video_id="video1", *, is_live=True):
         "channel": "テストチャンネル",
         "published_at": "2026-09-01T00:00:00Z",
         "duration": 120,
-        "is_live": is_live,
+        "is_live_broadcast": is_live_broadcast,
         "url": f"https://www.youtube.com/watch?v={video_id}",
     }
 
@@ -27,7 +27,7 @@ def setup_common(monkeypatch, videos):
 
 def test_process_channel_excludes_non_live_video(monkeypatch, tmp_path):
     db = CommentsDB(tmp_path / "comments.db")
-    setup_common(monkeypatch, [video("video1", is_live=False)])
+    setup_common(monkeypatch, [video("video1", is_live_broadcast=False)])
 
     result = pipeline.process_channel(
         "channel1",

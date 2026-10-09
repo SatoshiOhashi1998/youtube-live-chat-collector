@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 from .comment_processor import extract_comments
@@ -48,8 +49,8 @@ def process_channel(
             print(f"SKIP excluded: {video_id} {video['title']}")
             continue
 
-        # 通常動画はliveStreamingDetailsがないのでここで対象外にする。
-        if not video["is_live"]:
+        # ライブ配信ではない通常動画はここで対象外にする。
+        if not video["is_live_broadcast"]:
             db.mark_excluded(video_id)
             stats["excluded"] += 1
             print(f"EXCLUDE non-live: {video_id} {video['title']}")
