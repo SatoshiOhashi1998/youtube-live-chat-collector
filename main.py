@@ -114,4 +114,5 @@ def run_all_channels() -> None:
 
 
 if __name__ == "__main__":
-    interactive_mode()
+    # interactive_mode()
+    run_all_channels()
