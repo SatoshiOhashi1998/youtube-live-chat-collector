@@ -2,7 +2,7 @@ import csv
 
 import pytest
 
-import modules.config as config
+import youtube_live_chat_collector.config as config
 
 
 def write_channels_csv(path, rows):

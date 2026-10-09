@@ -2,8 +2,8 @@ import csv
 
 import pytest
 
-from modules.comments_db import CommentsDB
-from modules.exporter import (
+from youtube_live_chat_collector.comments_db import CommentsDB
+from youtube_live_chat_collector.exporter import (
     build_timestamp_url,
     export_comments_to_csv,
     parse_timestamp,

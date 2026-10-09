@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from modules.comment_processor import (
+from youtube_live_chat_collector.comment_processor import (
     _load_live_chat_json,
     _message_renderers,
     _simple_text,

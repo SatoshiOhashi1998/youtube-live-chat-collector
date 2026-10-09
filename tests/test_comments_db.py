@@ -1,6 +1,6 @@
 import sqlite3
 
-from modules.comments_db import CommentsDB
+from youtube_live_chat_collector.comments_db import CommentsDB
 
 
 def make_comment(

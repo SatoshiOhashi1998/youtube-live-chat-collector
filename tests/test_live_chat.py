@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 from yt_dlp.utils import DownloadError
 
-import modules.live_chat as live_chat
+import youtube_live_chat_collector.live_chat as live_chat
 
 
 def make_ydl_mock():

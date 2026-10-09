@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from modules.youtube import get_target_videos
+from youtube_live_chat_collector.youtube import get_target_videos
 from myutils.youtube_api import to_utc_z
 
 UTC = timezone.utc

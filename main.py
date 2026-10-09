@@ -1,8 +1,8 @@
 from datetime import date, timedelta
 
-from modules.config import FILTERED_DATA, validate
-from modules.exporter import export_comments_to_csv
-from modules.pipeline import (
+from youtube_live_chat_collector.config import FILTERED_DATA, validate
+from youtube_live_chat_collector.exporter import export_comments_to_csv
+from youtube_live_chat_collector.pipeline import (
 process_current_channels,
 process_historical_channels,
 )

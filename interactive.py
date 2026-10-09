@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from modules.config import (
+from youtube_live_chat_collector.config import (
     CHANNEL_DATAS,
     COMMENT_KEYWORDS,
     FILTERED_DATA,
@@ -10,8 +10,8 @@ from modules.config import (
     get_channels,
     validate,
 )
-from modules.exporter import export_comments_to_csv
-from modules.pipeline import process_channel, process_channels
+from youtube_live_chat_collector.exporter import export_comments_to_csv
+from youtube_live_chat_collector.pipeline import process_channel, process_channels
 
 
 def _input_date(label: str, default: str | None) -> str:

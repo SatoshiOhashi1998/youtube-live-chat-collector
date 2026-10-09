@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from modules.channel import Channel
-from modules.comments_db import CommentsDB
-from modules.live_chat import DownloadResult
-import modules.pipeline as pipeline
+from youtube_live_chat_collector.channel import Channel
+from youtube_live_chat_collector.comments_db import CommentsDB
+from youtube_live_chat_collector.live_chat import DownloadResult
+import youtube_live_chat_collector.pipeline as pipeline
 
 
 def video(video_id="video1", *, is_live_broadcast=True):

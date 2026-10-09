@@ -2,7 +2,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from modules.channel import Channel
+from youtube_live_chat_collector.channel import Channel
 
 
 def test_channel_stores_name_and_id():
