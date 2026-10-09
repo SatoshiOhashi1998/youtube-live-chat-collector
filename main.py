@@ -6,6 +6,7 @@ from youtube_live_chat_collector.pipeline import (
 process_current_channels,
 process_historical_channels,
 )
+from youtube_live_chat_collector.runner import run_current
 
 START_DATE = "2018-01-01"
 
@@ -36,26 +37,6 @@ def run_historical(
     print()
     print("=== Historical refresh ===")
     print(f"period:   {start_date} - {end_date}")
-    print(f"channel:  {channel_id or 'all'}")
-    print(f"success:  {stats['completed']}")
-    print(f"failed:   {stats['failed']}")
-    print(f"total:    {stats['total']}")
-
-def run_current(channel_id: str | None = None) -> None:
-    """最新の動画情報を同期する。
-
-    Args:
-        channel_id: 指定した場合はそのチャンネルのみ処理する。
-                    None の場合はCSV登録済みの全チャンネルを処理する。
-    """
-    validate()
-
-    stats = process_current_channels(
-        channel_id=channel_id,
-    )
-
-    print()
-    print("=== Current sync ===")
     print(f"channel:  {channel_id or 'all'}")
     print(f"success:  {stats['completed']}")
     print(f"failed:   {stats['failed']}")
