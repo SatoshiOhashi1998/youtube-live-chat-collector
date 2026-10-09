@@ -1,3 +1,22 @@
+"""YouTubeライブチャットの取得・処理パイプラインを管理するモジュール。
+
+対象チャンネルの動画を取得し、処理状態に応じて動画を選別したうえで、
+ライブチャットのダウンロード、コメントの抽出・保存、処理状態の更新を行う。
+
+主な関数:
+
+* process_channel():
+  指定したチャンネルの動画を処理し、コメントの取得・保存を行う。
+
+* process_channels():
+  複数のチャンネルを対象に、process_channel() による処理を実行する。
+
+* process_historical_channels():
+  登録済みチャンネルの過去動画に関する情報を更新する。
+
+* process_current_channels():
+  登録済みチャンネルの最新の動画情報を同期する。
+  """
 
 from __future__ import annotations
 
