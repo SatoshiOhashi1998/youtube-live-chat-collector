@@ -1,118 +1,87 @@
-from __future__ import annotations
+from datetime import date, timedelta
 
-from modules.config import (
-    CHANNEL_DATAS,
-    COMMENT_KEYWORDS,
-    FILTERED_DATA,
-    PUBLISHED_AFTER_DATE,
-    PUBLISHED_BEFORE_DATE,
-    find_channels_by_name,
-    get_channels,
-    validate,
-)
+from modules.config import FILTERED_DATA, validate
 from modules.exporter import export_comments_to_csv
-from modules.pipeline import process_channel, process_channels
+from modules.pipeline import (
+process_current_channels,
+process_historical_channels,
+)
 
+START_DATE = "2018-01-01"
 
-def _input_date(label: str, default: str | None) -> str:
-    if default:
-        value = input(f"{label} [{default}]: ").strip()
-        return value or default
+def run_historical(
+    channel_id: str | None = None,
+    start_date: str = START_DATE,
+    end_date: str | None = None,
+    ) -> None:
+    """過去動画の情報を更新する。
 
-    while True:
-        value = input(f"{label}: ").strip()
-        if value:
-            return value
-        print("日付を入力してください。")
-
-
-def interactive_mode() -> None:
+    Args:
+        channel_id: 指定した場合はそのチャンネルのみ処理する。
+                    None の場合はCSV登録済みの全チャンネルを処理する。
+        start_date: 取得対象期間の開始日。デフォルトは2018-01-01。
+        end_date: 取得対象期間の終了日。省略時は今日の前日。
+    """
     validate()
 
-    channel_name = input("チャンネル名（部分一致）: ").strip()
-    matches = find_channels_by_name(channel_name)
+    if end_date is None:
+        end_date = (date.today() - timedelta(days=1)).isoformat()
 
-    if not matches:
-        print("チャンネルが見つかりませんでした。")
-        return
-
-    if len(matches) > 1:
-        print("複数のチャンネルが見つかりました:")
-        for index, channel in enumerate(matches, start=1):
-            print(
-                f"{index}: {channel.channel_name} "
-                f"({channel.channel_id})"
-            )
-
-        while True:
-            try:
-                selected = int(input("番号: "))
-                channel = matches[selected - 1]
-                break
-            except (ValueError, IndexError):
-                print("正しい番号を入力してください。")
-    else:
-        channel = matches[0]
-
-    start_date = _input_date(
-        "開始日",
-        PUBLISHED_AFTER_DATE,
-    )
-    end_date = _input_date(
-        "終了日",
-        PUBLISHED_BEFORE_DATE,
-    )
-
-    print(f"キーワード: {', '.join(COMMENT_KEYWORDS)}")
-
-    stats = process_channel(
-        channel_id=channel.channel_id,
+    stats = process_historical_channels(
         start_date=start_date,
         end_date=end_date,
-        keywords=COMMENT_KEYWORDS,
+        channel_id=channel_id,
     )
 
     print()
-    print(f"処理結果: {stats}")
+    print("=== Historical refresh ===")
+    print(f"period:   {start_date} - {end_date}")
+    print(f"channel:  {channel_id or 'all'}")
+    print(f"success:  {stats['completed']}")
+    print(f"failed:   {stats['failed']}")
+    print(f"total:    {stats['total']}")
 
-    export_comments_to_csv(
-        FILTERED_DATA,
-        channel=channel.channel_name,
-    )
+def run_current(channel_id: str | None = None) -> None:
+    """最新の動画情報を同期する。
 
-
-def run_all_channels() -> None:
+    Args:
+        channel_id: 指定した場合はそのチャンネルのみ処理する。
+                    None の場合はCSV登録済みの全チャンネルを処理する。
+    """
     validate()
 
-    channels = get_channels(CHANNEL_DATAS)
-    if not channels:
-        print("チャンネルがありません。")
-        return
-
-    start_date = _input_date(
-        "開始日",
-        PUBLISHED_AFTER_DATE,
-    )
-    end_date = _input_date(
-        "終了日",
-        PUBLISHED_BEFORE_DATE,
-    )
-
-    print(f"キーワード: {', '.join(COMMENT_KEYWORDS)}")
-
-    stats = process_channels(
-        channels=channels,
-        start_date=start_date,
-        end_date=end_date,
-        keywords=COMMENT_KEYWORDS,
+    stats = process_current_channels(
+        channel_id=channel_id,
     )
 
     print()
-    print(f"全体の処理結果: {stats}")
+    print("=== Current sync ===")
+    print(f"channel:  {channel_id or 'all'}")
+    print(f"success:  {stats['completed']}")
+    print(f"failed:   {stats['failed']}")
+    print(f"total:    {stats['total']}")
 
+def main():
     export_comments_to_csv(FILTERED_DATA)
 
+if __name__ == "main":
+    # CSV登録済みの全チャンネルを同期
+    # run_current()
 
-if __name__ == "__main__":
-    # interactive_mode()
-    run_all_channels()
+    # チャンネルIDを指定して同期
+    # run_current("UCxxxxxxxxxxxxxxxxxxxxxx")
+
+    # CSV登録済みの全チャンネルの過去情報を更新
+    # run_historical()
+
+    # チャンネルIDを指定して過去情報を更新
+    # run_historical("UCxxxxxxxxxxxxxxxxxxxxxx")
+
+    # 期間も指定して更新
+    # run_historical(
+    #     channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
+    #     start_date="2024-01-01",
+    #     end_date="2025-12-31",
+    # )
+
+    main()
