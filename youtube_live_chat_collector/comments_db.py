@@ -168,7 +168,21 @@ class CommentsDB:
         self,
         channel: str | None = None,
         keyword: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> list[sqlite3.Row]:
+        """条件を指定してコメントを検索する。
+
+        Args:
+            channel: チャンネル名による絞り込み。
+            keyword: コメント本文に含まれるキーワード。
+            start_date: 検索開始日（YYYY-MM-DD）。指定日を含む。
+            end_date: 検索終了日（YYYY-MM-DD）。指定日を含む。
+
+        Returns:
+            条件に一致するコメントのリスト。
+            date、id の昇順で返す。
+        """
         query = "SELECT * FROM comments WHERE 1=1"
         params: list[str] = []
 
@@ -179,6 +193,14 @@ class CommentsDB:
         if keyword:
             query += " AND comment LIKE ?"
             params.append(f"%{keyword}%")
+
+        if start_date:
+            query += " AND date >= ?"
+            params.append(start_date)
+
+        if end_date:
+            query += " AND date <= ?"
+            params.append(end_date)
 
         query += " ORDER BY date ASC, id ASC"
 
@@ -368,4 +390,3 @@ class CommentsDB:
                 )
 
         print("=" * 60)
-
