@@ -11,9 +11,9 @@ from youtube_live_chat_collector.pipeline import (
     process_channel,
     process_channels,
     process_historical_channels,
-    run_current,
 )
 
+from youtube_live_chat_collector.runner import run_current
 
 # ============================================================
 # Historical collection
