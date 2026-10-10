@@ -190,3 +190,182 @@ class CommentsDB:
             return conn.execute(
                 "SELECT * FROM comments ORDER BY date ASC, id ASC"
             ).fetchall()
+
+    def debug_summary(self) -> None:
+        """DBのパスと、テーブル・処理状態ごとの件数を出力する。"""
+        print("\n" + "=" * 60)
+        print("DEBUG: CommentsDB Summary")
+        print("=" * 60)
+        print(f"DB path: {os.path.abspath(self.db_path)}")
+
+        with self._connect() as conn:
+            job_count = conn.execute(
+                "SELECT COUNT(*) FROM live_chat_jobs"
+            ).fetchone()[0]
+
+            comment_count = conn.execute(
+                "SELECT COUNT(*) FROM comments"
+            ).fetchone()[0]
+
+            print(f"動画ジョブ総数: {job_count}")
+            print(f"コメント総数: {comment_count}")
+
+            rows = conn.execute(
+                """
+                SELECT completed, excluded, COUNT(*) AS count
+                FROM live_chat_jobs
+                GROUP BY completed, excluded
+                ORDER BY completed, excluded
+                """
+            ).fetchall()
+
+            print("\n--- 処理状態の内訳 ---")
+            for row in rows:
+                print(
+                    f"completed={row['completed']}, "
+                    f"excluded={row['excluded']}: "
+                    f"{row['count']} 件"
+                )
+
+        print("=" * 60)
+
+    def debug_jobs(
+        self,
+        completed: int | None = None,
+        excluded: int | None = None,
+        limit: int = 100,
+    ) -> None:
+        """動画ごとの処理状態を一覧表示する。"""
+        query = """
+            SELECT video_id, completed, excluded
+            FROM live_chat_jobs
+            WHERE 1=1
+        """
+        params = []
+
+        if completed is not None:
+            query += " AND completed = ?"
+            params.append(completed)
+
+        if excluded is not None:
+            query += " AND excluded = ?"
+            params.append(excluded)
+
+        query += " ORDER BY video_id LIMIT ?"
+        params.append(limit)
+
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+
+        print("\n--- DEBUG: Live Chat Jobs ---")
+        print(f"表示件数: {len(rows)}")
+
+        for row in rows:
+            print(
+                f"video_id={row['video_id']}, "
+                f"completed={row['completed']}, "
+                f"excluded={row['excluded']}"
+            )
+
+    def debug_video(self, video_id: str) -> None:
+        """指定動画の処理状態と保存済みコメントを確認する。"""
+        print("\n" + "=" * 60)
+        print(f"DEBUG: Video {video_id}")
+        print("=" * 60)
+
+        with self._connect() as conn:
+            job = conn.execute(
+                """
+                SELECT *
+                FROM live_chat_jobs
+                WHERE video_id = ?
+                """,
+                (video_id,),
+            ).fetchone()
+
+            comment_count = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM comments
+                WHERE video_id = ?
+                """,
+                (video_id,),
+            ).fetchone()[0]
+
+            if job is None:
+                print("ジョブ: DBに登録されていません")
+            else:
+                print(f"completed: {job['completed']}")
+                print(f"excluded:  {job['excluded']}")
+
+            print(f"保存済みコメント数: {comment_count}")
+
+            latest_comments = conn.execute(
+                """
+                SELECT timestamp, author_name, comment
+                FROM comments
+                WHERE video_id = ?
+                ORDER BY id DESC
+                LIMIT 5
+                """,
+                (video_id,),
+            ).fetchall()
+
+            print("\n--- 最新の保存コメント（最大5件） ---")
+            for row in latest_comments:
+                print(
+                    f"[{row['timestamp']}] "
+                    f"{row['author_name']}: {row['comment']}"
+                )
+
+        print("=" * 60)
+
+    def debug_check_jobs(self) -> None:
+        """ジョブとコメントの状態に不整合がないか確認する。"""
+        print("\n" + "=" * 60)
+        print("DEBUG: Job Consistency Check")
+        print("=" * 60)
+
+        with self._connect() as conn:
+            # completed と excluded が同時に1のジョブ
+            conflicting_jobs = conn.execute(
+                """
+                SELECT video_id, completed, excluded
+                FROM live_chat_jobs
+                WHERE completed = 1 AND excluded = 1
+                """
+            ).fetchall()
+
+            print(
+                "\n[1] completed=1 かつ excluded=1:",
+                len(conflicting_jobs),
+                "件",
+            )
+            for row in conflicting_jobs:
+                print(dict(row))
+
+            # コメントが存在するが、ジョブが存在しない動画
+            orphan_comments = conn.execute(
+                """
+                SELECT c.video_id, COUNT(*) AS comment_count
+                FROM comments AS c
+                LEFT JOIN live_chat_jobs AS j
+                    ON c.video_id = j.video_id
+                WHERE j.video_id IS NULL
+                GROUP BY c.video_id
+                """
+            ).fetchall()
+
+            print(
+                "\n[2] ジョブ未登録の動画に保存されたコメント:",
+                len(orphan_comments),
+                "動画",
+            )
+            for row in orphan_comments:
+                print(
+                    f"video_id={row['video_id']}, "
+                    f"comments={row['comment_count']}"
+                )
+
+        print("=" * 60)
+
