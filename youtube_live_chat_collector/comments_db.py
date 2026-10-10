@@ -166,16 +166,16 @@ class CommentsDB:
 
     def search_comments(
         self,
-        channel: str | None = None,
-        keyword: str | None = None,
+        channel: str | list[str] | None = None,
+        keyword: str | list[str] | None = None,
         start_date: str | None = None,
         end_date: str | None = None,
     ) -> list[sqlite3.Row]:
         """条件を指定してコメントを検索する。
 
         Args:
-            channel: チャンネル名による絞り込み。
-            keyword: コメント本文に含まれるキーワード。
+            channel: チャンネル名、またはチャンネル名のリスト。
+            keyword: コメント本文のキーワード、またはキーワードのリスト。
             start_date: 検索開始日（YYYY-MM-DD）。指定日を含む。
             end_date: 検索終了日（YYYY-MM-DD）。指定日を含む。
 
@@ -187,12 +187,16 @@ class CommentsDB:
         params: list[str] = []
 
         if channel:
-            query += " AND channel = ?"
-            params.append(channel)
+            channels = [channel] if isinstance(channel, str) else channel
+            placeholders = ", ".join("?" for _ in channels)
+            query += f" AND channel IN ({placeholders})"
+            params.extend(channels)
 
         if keyword:
-            query += " AND comment LIKE ?"
-            params.append(f"%{keyword}%")
+            keywords = [keyword] if isinstance(keyword, str) else keyword
+            conditions = ["comment LIKE ?" for _ in keywords]
+            query += f" AND (" + " OR ".join(conditions) + ")"
+            params.extend(f"%{word}%" for word in keywords)
 
         if start_date:
             query += " AND date >= ?"
@@ -206,6 +210,7 @@ class CommentsDB:
 
         with self._connect() as conn:
             return conn.execute(query, params).fetchall()
+
 
     def get_all_comments(self) -> list[sqlite3.Row]:
         with self._connect() as conn:
