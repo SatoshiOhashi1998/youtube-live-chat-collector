@@ -3,8 +3,8 @@ import argparse
 
 from youtube_live_chat_collector.comments_db import CommentsDB
 from youtube_live_chat_collector.config import (
-    CHANNEL_DATAS,
     FILTERED_DATA,
+    get_channels,
 )
 from youtube_live_chat_collector.exporter import export_comments_to_csv
 from youtube_live_chat_collector.pipeline import (
@@ -12,8 +12,8 @@ from youtube_live_chat_collector.pipeline import (
     process_channels,
     process_historical_channels,
 )
-
 from youtube_live_chat_collector.runner import run_current
+
 
 # ============================================================
 # Historical collection
@@ -27,39 +27,46 @@ def run_historical(
     start_date=START_DATE,
     end_date=None,
 ):
-    """過去のライブチャットを収集する。"""
+    """過去のライブチャットに関する処理を実行する。"""
     if end_date is None:
         end_date = (date.today() - timedelta(days=1)).isoformat()
 
+    # 日付の形式を検証する
     date.fromisoformat(start_date)
     date.fromisoformat(end_date)
 
     if start_date > end_date:
         raise ValueError("開始日は終了日以前の日付を指定してください。")
 
-    channels = CHANNEL_DATAS
+    # チャンネルIDが指定されている場合はCSV登録済みか検証する
+    channels = get_channels()
 
     if channel_id:
-        channels = [
+        matched_channels = [
             channel
-            for channel in CHANNEL_DATAS
+            for channel in channels
             if channel.channel_id == channel_id
         ]
 
-        if not channels:
+        if not matched_channels:
             raise ValueError(
                 f"チャンネルが見つかりません: {channel_id}"
             )
 
+        target_count = len(matched_channels)
+    else:
+        target_count = len(channels)
+
     print("=== 過去のライブチャット収集 ===")
     print(f"開始日: {start_date}")
     print(f"終了日: {end_date}")
-    print(f"対象チャンネル数: {len(channels)}")
+    print(f"対象チャンネル数: {target_count}")
 
+    # process_historical_channels は channel_id を受け取る
     process_historical_channels(
-        channels=channels,
         start_date=start_date,
         end_date=end_date,
+        channel_id=channel_id,
     )
 
 
@@ -72,7 +79,7 @@ def _input_date(prompt, default=None):
     while True:
         suffix = f" [{default}]" if default else ""
         value = input(
-            f"{prompt} (YYYY-MM-DD){suffix}: "
+            f"{prompt} (YYYY-M-D){suffix}: "
         ).strip()
 
         if not value and default:
@@ -82,32 +89,43 @@ def _input_date(prompt, default=None):
             return None
 
         try:
-            date.fromisoformat(value)
-            return value
-        except ValueError:
-            print("日付の形式が正しくありません。")
+            return _parse_date(value).isoformat()
+        except ValueError as exc:
+            print(f"日付の形式が正しくありません: {exc}")
 
 
 def interactive_mode():
     """対話形式でチャンネルと期間を指定して収集する。"""
+    channels = get_channels()
+
     print("\n=== チャンネル選択 ===")
 
-    for index, channel in enumerate(CHANNEL_DATAS, start=1):
+    if not channels:
+        print("チャンネルが登録されていません。")
+        return
+
+    for index, channel in enumerate(channels, start=1):
         print(f"{index}. {channel.channel_name}")
 
     query = input(
         "\nチャンネル名の一部を入力してください: "
     ).strip()
 
+    if not query:
+        print("チャンネル名を入力してください。")
+        return
+
     matched_channels = [
         channel
-        for channel in CHANNEL_DATAS
+        for channel in channels
         if query.lower() in channel.channel_name.lower()
     ]
 
     if not matched_channels:
         print("該当するチャンネルがありません。")
         return
+
+    print("\n=== 検索結果 ===")
 
     for index, channel in enumerate(matched_channels, start=1):
         print(f"{index}. {channel.channel_name}")
@@ -117,8 +135,13 @@ def interactive_mode():
     else:
         try:
             selected = int(input("番号を選択してください: "))
+
+            if not 1 <= selected <= len(matched_channels):
+                raise ValueError
+
             channel = matched_channels[selected - 1]
-        except (ValueError, IndexError):
+
+        except ValueError:
             print("選択が正しくありません。")
             return
 
@@ -139,8 +162,14 @@ def interactive_mode():
         print("開始日は終了日以前の日付を指定してください。")
         return
 
+    print("\n=== 収集条件 ===")
+    print(f"チャンネル: {channel.channel_name}")
+    print(f"チャンネルID: {channel.channel_id}")
+    print(f"開始日: {start_date}")
+    print(f"終了日: {end_date}")
+
     process_channel(
-        channel=channel,
+        channel_id=channel.channel_id,
         start_date=start_date,
         end_date=end_date,
     )
@@ -155,6 +184,12 @@ def interactive_mode():
 
 def run_all_channels():
     """全チャンネルを指定期間で収集する。"""
+    channels = get_channels()
+
+    if not channels:
+        print("チャンネルが登録されていません。")
+        return
+
     start_date = _input_date(
         "開始日",
         default=START_DATE,
@@ -172,8 +207,13 @@ def run_all_channels():
         print("開始日は終了日以前の日付を指定してください。")
         return
 
+    print("\n=== 全チャンネル収集 ===")
+    print(f"対象チャンネル数: {len(channels)}")
+    print(f"開始日: {start_date}")
+    print(f"終了日: {end_date}")
+
     process_channels(
-        channels=CHANNEL_DATAS,
+        channels=channels,
         start_date=start_date,
         end_date=end_date,
     )
@@ -214,6 +254,30 @@ def _parse_list(value):
 
     return result or None
 
+def _parse_date(value):
+    """柔軟な形式の日付文字列を date に変換する。
+
+    対応例:
+        2025-1-1
+        2025-01-1
+        2025-1-01
+        2025-01-01
+
+    存在しない日付は ValueError になる。
+    """
+    parts = value.strip().split("-")
+
+    if len(parts) != 3:
+        raise ValueError("日付は YYYY-M-D の形式で入力してください。")
+
+    try:
+        year, month, day = map(int, parts)
+        return date(year, month, day)
+    except ValueError as exc:
+        raise ValueError(
+            "存在しない日付、または正しくない日付形式です。"
+        ) from exc
+
 
 def _input_list(prompt):
     """カンマ区切りで複数の値を入力する。"""
@@ -228,17 +292,16 @@ def _input_export_date(prompt):
     """CSV出力用の日付入力。空欄は指定なし。"""
     while True:
         value = input(
-            f"{prompt}（YYYY-MM-DD、空欄は指定なし）: "
+            f"{prompt}（YYYY-M-D、空欄は指定なし）: "
         ).strip()
 
         if not value:
             return None
 
         try:
-            date.fromisoformat(value)
-            return value
-        except ValueError:
-            print("日付の形式が正しくありません。")
+            return _parse_date(value).isoformat()
+        except ValueError as exc:
+            print(f"日付の形式が正しくありません: {exc}")
 
 
 def export_csv(
