@@ -41,15 +41,35 @@ def build_timestamp_url(video_id: str, timestamp: str) -> str:
         return base_url
     return f"{base_url}&t={seconds}s"
 
-
 def export_comments_to_csv(
     output_csv: str,
     db: CommentsDB | None = None,
-    channel: str | None = None,
-    keyword: str | None = None,
+    channel: str | list[str] | None = None,
+    keyword: str | list[str] | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
 ) -> str:
+    """条件を指定してコメントを検索し、CSVに出力する。
+
+    Args:
+        output_csv: CSVの出力先パス。
+        db: 使用するCommentsDBインスタンス。
+        channel: チャンネル名、またはチャンネル名のリスト。
+        keyword: コメント本文のキーワード、またはキーワードのリスト。
+        start_date: 検索開始日（YYYY-MM-DD）。指定日を含む。
+        end_date: 検索終了日（YYYY-MM-DD）。指定日を含む。
+
+    Returns:
+        出力したCSVファイルのパス。
+    """
     db = db or CommentsDB()
-    rows = db.search_comments(channel=channel, keyword=keyword)
+
+    rows = db.search_comments(
+        channel=channel,
+        keyword=keyword,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
     output_path = Path(output_csv)
     output_path.parent.mkdir(parents=True, exist_ok=True)
