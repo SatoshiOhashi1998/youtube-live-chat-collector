@@ -1,25 +1,4 @@
-"""YouTubeライブチャットの取得・処理パイプラインを管理するモジュール。
-
-対象チャンネルの動画を取得し、処理状態に応じて動画を選別したうえで、
-ライブチャットのダウンロード、コメントの抽出・保存、処理状態の更新を行う。
-
-主な関数:
-
-* process_channel():
-    指定したチャンネルの動画を処理し、コメントの取得・保存を行う。
-
-* process_channels():
-    複数のチャンネルを対象に、process_channel() による処理を実行する。
-
-* process_historical_channels():
-    指定したチャンネルの過去動画に関する情報を更新する。
-
-* process_current_channels():
-    指定したチャンネルの最新の動画情報を同期する。
-
-* _get_target_channels():
-    CSV一括処理またはチャンネルID指定に応じて対象チャンネルを選択する。
-"""
+"""動画同期からライブチャット取得・コメント保存までのパイプライン。"""
 
 from __future__ import annotations
 
@@ -45,51 +24,47 @@ from .youtube import (
     refresh_historical_channel,
     sync_current_channel,
 )
+from myutils.youtube_api import YouTubeAPI, create_youtube_api
 
 
-def process_channel(
-    channel_id: str,
-    start_date,
-    end_date,
-    keywords: list[str] | None = None,
-    db: CommentsDB | None = None,
+_VIDEO_STATS_TEMPLATE = {
+    "total": 0,
+    "completed": 0,
+    "excluded": 0,
+    "retry": 0,
+}
+
+
+def _process_videos(
+    videos: list[dict],
+    keywords: list[str],
+    db: CommentsDB,
 ) -> dict[str, int]:
-    """指定したチャンネルの動画を処理する。"""
-    keywords = keywords if keywords is not None else COMMENT_KEYWORDS
-    db = db or CommentsDB()
-
-    videos = get_target_videos(channel_id, start_date, end_date)
+    """取得済み動画一覧に対して、チャット取得からDB保存まで行う。"""
     db.ensure_jobs(video["video_id"] for video in videos)
-
-    stats = {
-        "total": len(videos),
-        "completed": 0,
-        "excluded": 0,
-        "retry": 0,
-    }
+    stats = {**_VIDEO_STATS_TEMPLATE, "total": len(videos)}
 
     for video in videos:
         video_id = video["video_id"]
+        title = video.get("title", "")
 
         if db.is_completed(video_id):
             stats["completed"] += 1
-            print(f"SKIP completed: {video_id} {video['title']}")
+            print(f"SKIP completed: {video_id} {title}")
             continue
 
         if db.is_excluded(video_id):
             stats["excluded"] += 1
-            print(f"SKIP excluded: {video_id} {video['title']}")
+            print(f"SKIP excluded: {video_id} {title}")
             continue
 
-        # ライブ配信ではない通常動画はここで対象外にする。
         if not video["is_live_broadcast"]:
             db.mark_excluded(video_id)
             stats["excluded"] += 1
-            print(f"EXCLUDE non-live: {video_id} {video['title']}")
+            print(f"EXCLUDE non-live: {video_id} {title}")
             continue
 
-        print(f"PROCESS: {video_id} {video['title']}")
-
+        print(f"PROCESS: {video_id} {title}")
         result = download_live_chat(
             video_id,
             JSON_DIRECTORY,
@@ -120,22 +95,54 @@ def process_channel(
             )
             db.save_comments(comments)
 
-            # DB保存成功後にJSONを削除する。
+            # コメントのDB保存に成功してから、一時JSONとジョブ状態を更新する。
             delete_video_json(video_id, JSON_DIRECTORY)
             db.mark_completed(video_id)
             stats["completed"] += 1
-
-            print(
-                f"COMPLETED: {video_id} "
-                f"comments={len(comments)}"
-            )
+            print(f"COMPLETED: {video_id} comments={len(comments)}")
 
         except Exception as exc:
-            # completed=0 のまま。JSONも残す。
+            # 保存や抽出に失敗した場合は未完了のままにして次回再試行する。
             stats["retry"] += 1
             print(f"ERROR: {video_id}: {exc}")
 
     return stats
+
+
+def process_channel(
+    channel_id: str,
+    start_date,
+    end_date,
+    keywords: list[str] | None = None,
+    db: CommentsDB | None = None,
+    *,
+    sync_metadata: bool = True,
+    end_date_is_day: bool = True,
+    date_bounds_are_utc: bool = False,
+    api: YouTubeAPI | None = None,
+) -> dict[str, int]:
+    """指定チャンネルの動画を取得し、ライブチャットを処理する。
+
+    通常の期間指定収集では sync_metadata=True のまま使用する。
+    current のように、先行する同期処理が完了している場合は False を指定し、
+    同じ範囲の動画メタデータをもう一度同期しない。
+    """
+    selected_keywords = (
+        keywords if keywords is not None else COMMENT_KEYWORDS
+    )
+    if db is None:
+        db = CommentsDB()
+
+    videos = get_target_videos(
+        channel_id=channel_id,
+        start_date=start_date,
+        end_date=end_date,
+        api=api,
+        sync_metadata=sync_metadata,
+        end_date_is_day=end_date_is_day,
+        date_bounds_are_utc=date_bounds_are_utc,
+    )
+    return _process_videos(videos, selected_keywords, db)
 
 
 def process_channels(
@@ -145,19 +152,14 @@ def process_channels(
     keywords: list[str] | None = None,
     db: CommentsDB | None = None,
 ) -> dict[str, int]:
-    """複数のチャンネルを処理する。"""
-    db = db or CommentsDB()
+    """複数チャンネルの指定期間の動画を処理する。"""
+    if db is None:
+        db = CommentsDB()
 
-    total_stats = {
-        "total": 0,
-        "completed": 0,
-        "excluded": 0,
-        "retry": 0,
-    }
+    total_stats = dict(_VIDEO_STATS_TEMPLATE)
 
     for channel in channels:
-        print()
-        print("=" * 60)
+        print("\n" + "=" * 60)
         print(f"CHANNEL: {channel.channel_name} ({channel.channel_id})")
         print("=" * 60)
 
@@ -168,7 +170,6 @@ def process_channels(
             keywords=keywords,
             db=db,
         )
-
         for key in total_stats:
             total_stats[key] += stats[key]
 
@@ -178,15 +179,7 @@ def process_channels(
 def _get_target_channels(
     channel_id: str | None = None,
 ) -> list[tuple[str, str]]:
-    """処理対象チャンネルを選択する。
-
-    channel_id が None の場合:
-        CSV登録済みの全チャンネルを返す。
-
-    channel_id が指定された場合:
-        CSV登録済みならCSVのチャンネル名を使用する。
-        CSV未登録なら指定IDをチャンネル名の代わりに使用する。
-    """
+    """CSV登録状態とチャンネルID指定に応じて対象チャンネルを返す。"""
     channels = get_channels(CHANNEL_DATAS)
 
     if channel_id is None:
@@ -195,21 +188,16 @@ def _get_target_channels(
             for channel in channels
         ]
 
-    channel_id = channel_id.strip()
-
-    if not channel_id:
-        raise ValueError(
-            "channel_id に空文字列は指定できません。"
-        )
+    normalized_id = channel_id.strip()
+    if not normalized_id:
+        raise ValueError("channel_id に空文字列は指定できません。")
 
     for channel in channels:
-        if channel.channel_id == channel_id:
-            return [
-                (channel.channel_id, channel.channel_name)
-            ]
+        if channel.channel_id == normalized_id:
+            return [(channel.channel_id, channel.channel_name)]
 
-    # CSVに登録されていないチャンネルもIDで指定できるようにする。
-    return [(channel_id, channel_id)]
+    # CSV未登録チャンネルもIDで指定できるようにする。
+    return [(normalized_id, normalized_id)]
 
 
 def process_historical_channels(
@@ -217,43 +205,26 @@ def process_historical_channels(
     end_date,
     channel_id: str | None = None,
 ) -> dict[str, int]:
-    """指定期間の過去動画情報を更新する。
-
-    channel_id が None の場合はCSV登録済みの全チャンネルを処理する。
-    channel_id が指定された場合は、そのチャンネルのみ処理する。
-    """
+    """指定したチャンネルの過去動画情報を更新する。"""
     channels = _get_target_channels(channel_id)
-
-    stats = {
-        "total": len(channels),
-        "completed": 0,
-        "failed": 0,
-    }
+    stats = {"total": len(channels), "completed": 0, "failed": 0}
 
     for target_channel_id, channel_name in channels:
-        print()
+        print("\n" + "=" * 60)
+        print(f"REFRESH: {channel_name} ({target_channel_id})")
         print("=" * 60)
-        print(
-            f"REFRESH: "
-            f"{channel_name} "
-            f"({target_channel_id})"
-        )
-        print("=" * 60)
-
         try:
             success = refresh_historical_channel(
                 channel_id=target_channel_id,
                 start_date=start_date,
                 end_date=end_date,
             )
-
             if success:
                 stats["completed"] += 1
                 print(f"COMPLETED: {channel_name}")
             else:
                 stats["failed"] += 1
                 print(f"FAILED: {channel_name}")
-
         except Exception as exc:
             stats["failed"] += 1
             print(f"ERROR: {channel_name}: {exc}")
@@ -264,40 +235,75 @@ def process_historical_channels(
 def process_current_channels(
     channel_id: str | None = None,
 ) -> dict[str, int]:
-    """最新の動画情報を同期する。
+    """最新の動画情報を同期し、その新規同期範囲のライブチャットを保存する。
 
-    channel_id が None の場合はCSV登録済みの全チャンネルを処理する。
-    channel_id が指定された場合は、そのチャンネルのみ処理する。
+    チャンネルごとに、メタデータ同期 -> 同じ範囲の動画読み出し ->
+    チャット取得 -> コメント抽出 -> DB保存、の順で実行する。
     """
     channels = _get_target_channels(channel_id)
-
     stats = {
         "total": len(channels),
         "completed": 0,
         "failed": 0,
+        "videos_total": 0,
+        "videos_completed": 0,
+        "videos_excluded": 0,
+        "videos_retry": 0,
     }
+    db = CommentsDB()
 
     for target_channel_id, channel_name in channels:
-        print()
-        print("=" * 60)
-        print(
-            f"SYNC: "
-            f"{channel_name} "
-            f"({target_channel_id})"
-        )
+        print("\n" + "=" * 60)
+        print(f"CURRENT: {channel_name} ({target_channel_id})")
         print("=" * 60)
 
         try:
-            success = sync_current_channel(
+            # 同期に使ったAPIインスタンスを、DBから動画一覧を読む処理にも再利用する。
+            api = create_youtube_api()
+            sync_result = sync_current_channel(
                 channel_id=target_channel_id,
+                api=api,
             )
 
-            if success:
-                stats["completed"] += 1
-                print(f"COMPLETED: {channel_name}")
-            else:
+            if not sync_result.success:
                 stats["failed"] += 1
-                print(f"FAILED: {channel_name}")
+                print(
+                    f"SYNC FAILED: {channel_name}: "
+                    f"{sync_result.reason or 'unknown error'}"
+                )
+                continue
+
+            if not sync_result.start_date or not sync_result.end_date:
+                stats["completed"] += 1
+                print(
+                    f"NO NEW RANGE: {channel_name}; "
+                    "チャット取得をスキップします。"
+                )
+                continue
+
+            chat_stats = process_channel(
+                channel_id=target_channel_id,
+                start_date=sync_result.start_date,
+                end_date=sync_result.end_date,
+                db=db,
+                sync_metadata=False,
+                date_bounds_are_utc=True,
+                api=api,
+            )
+
+            stats["completed"] += 1
+            stats["videos_total"] += chat_stats["total"]
+            stats["videos_completed"] += chat_stats["completed"]
+            stats["videos_excluded"] += chat_stats["excluded"]
+            stats["videos_retry"] += chat_stats["retry"]
+
+            print(
+                f"CURRENT DONE: {channel_name} "
+                f"videos={chat_stats['total']} "
+                f"completed={chat_stats['completed']} "
+                f"excluded={chat_stats['excluded']} "
+                f"retry={chat_stats['retry']}"
+            )
 
         except Exception as exc:
             stats["failed"] += 1

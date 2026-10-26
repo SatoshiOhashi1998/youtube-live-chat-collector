@@ -8,11 +8,22 @@ from .channel import Channel
 
 load_dotenv()
 
+def resolve_path(value: str) -> Path:
+    path = Path(value)
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    return path.resolve()
+
 
 YOUTUBE_DB_PATH = os.getenv("YOUTUBE_DB_PATH", "youtube.db")
 COMMENTS_DB_PATH = os.getenv("COMMENTS_DB_PATH", "data/comments.db")
 
-CHANNEL_DATAS = os.getenv("CHANNEL_DATAS", "data/channels.csv")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+CHANNEL_DATAS = resolve_path(
+    os.getenv("CHANNEL_DATAS", "data/channel_data.csv")
+)
+
 JSON_DIRECTORY = Path(os.getenv("JSON_DIRECTORY", "data/live_chat"))
 FILTERED_DATA = os.getenv("FILTERED_DATA", "data/comments.csv")
 
@@ -41,7 +52,7 @@ def validate() -> None:
         )
 
 
-def get_channels(csv_path: str = CHANNEL_DATAS) -> list[Channel]:
+def get_channels(csv_path: str | Path = CHANNEL_DATAS) -> list[Channel]:
     with open(csv_path, "r", encoding="utf-8-sig", newline="") as file:
         return [
             Channel(
@@ -54,7 +65,7 @@ def get_channels(csv_path: str = CHANNEL_DATAS) -> list[Channel]:
 
 def find_channels_by_name(
     partial_name: str,
-    csv_path: str = CHANNEL_DATAS,
+    csv_path: str | Path = CHANNEL_DATAS,
 ) -> list[Channel]:
     channels = get_channels(csv_path)
 

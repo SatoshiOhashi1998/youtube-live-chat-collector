@@ -20,9 +20,21 @@ def video(video_id="video1", *, is_live_broadcast=True):
 
 
 def setup_common(monkeypatch, videos):
-    monkeypatch.setattr(pipeline, "get_target_videos", lambda *args: videos)
-    monkeypatch.setattr(pipeline, "JSON_DIRECTORY", Path("json-output"))
-    monkeypatch.setattr(pipeline, "COOKIES_FILE", "cookies.txt")
+    monkeypatch.setattr(
+        pipeline,
+        "get_target_videos",
+        lambda *args, **kwargs: videos,
+    )
+    monkeypatch.setattr(
+        pipeline,
+        "JSON_DIRECTORY",
+        Path("json-output"),
+    )
+    monkeypatch.setattr(
+        pipeline,
+        "COOKIES_FILE",
+        "cookies.txt",
+    )
 
 
 def test_process_channel_excludes_non_live_video(monkeypatch, tmp_path):
